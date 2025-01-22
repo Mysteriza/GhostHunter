@@ -71,5 +71,6 @@ Contributions are welcome! If you have any suggestions, bug reports, or feature 
 Thanks to the [Wayback Machine](https://web.archive.org/) for providing the CDX API.
 
 Special thanks to the creators of the Go libraries used in this project:
-- [github.com/briandowns/spinner](github.com/briandowns/spinner)
-- [github.com/fatih/color](github.com/fatih/color)
+- [briandowns/spinner](https://github.com/briandowns/spinner)
+- [fatih/color](https://github.com/fatih/color)
+- [olekukonko/tablewriter](https://github.com/olekukonko/tablewriter)
