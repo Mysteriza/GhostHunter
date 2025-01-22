@@ -14,7 +14,7 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
-	"github.com/olekukonko/tablewriter" // Library untuk membuat tabel
+	"github.com/olekukonko/tablewriter"
 )
 
 func main() {
@@ -114,9 +114,10 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 
 	// Prepare a table to display the results
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"File Extension", "File Name", "Status"})
+	table.SetHeader([]string{"File Found", "File Name", "Status", "URL Count"})
 	table.SetBorder(false)
 	table.SetHeaderColor(
+		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiCyanColor},
 		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiCyanColor},
 		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiCyanColor},
 		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiCyanColor},
@@ -125,10 +126,14 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 		tablewriter.Colors{tablewriter.FgHiGreenColor},
 		tablewriter.Colors{tablewriter.FgHiWhiteColor},
 		tablewriter.Colors{tablewriter.FgHiYellowColor},
+		tablewriter.Colors{tablewriter.FgHiMagentaColor},
 	)
 
 	// Save the results into separate files
 	var wg sync.WaitGroup
+	totalURLs := 0 // Variable to store the total number of URLs
+
+	// Iterate over all extensions found
 	for ext, urls := range extensionMap {
 		wg.Add(1)
 		go func(ext string, urls []string) {
@@ -136,16 +141,29 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 			fileName := fmt.Sprintf("%s.%s.txt", domain, ext)
 			filePath := filepath.Join(outputDir, fileName)
 			content := strings.Join(urls, "\n")
+
+			// Attempt to save the file
 			if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-				table.Append([]string{ext, fileName, color.RedString("Failed")})
+				table.Append([]string{ext, fileName, color.RedString("Failed"), fmt.Sprintf("%d URLs", len(urls))})
 			} else {
-				table.Append([]string{ext, fileName, color.GreenString("Success")})
+				table.Append([]string{ext, fileName, color.GreenString("Success"), fmt.Sprintf("%d URLs", len(urls))})
 			}
+			totalURLs += len(urls) // Add to the total count
 		}(ext, urls)
 	}
 	wg.Wait()
 
+	// Add a separator line before the TOTAL row
+	table.Append([]string{"", "", "", ""}) // Empty row for spacing
+	table.Append([]string{"", "", "-------------------", "-------------------"}) // Separator line
+
+	// Add a row for the total number of URLs
+	table.Append([]string{"", "", "TOTAL", fmt.Sprintf("%d URLs", totalURLs)})
+
 	// Render the table
 	fmt.Println("\nResults Summary:")
 	table.Render()
+
+	// Add a closing message
+	color.Cyan("\nPlease manually check the Wayback Machine for available snapshots (archives) of URLs found by this tool.\n")
 }
