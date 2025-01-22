@@ -36,6 +36,7 @@ Go: Make sure you have Go installed on your system.
     go get github.com/olekukonko/tablewriter
     ```
     Or install them globally:
+<<<<<<< HEAD
     ```
     go install github.com/briandowns/spinner@latest
     ```
@@ -48,14 +49,29 @@ Go: Make sure you have Go installed on your system.
    go build -o GhostHunter
    ```
 5. Usage:
+=======
+   ```
+   go install github.com/briandowns/spinner@latest
+   ```
+   ```
+   go install github.com/fatih/color@latest
+   ```
+4. Usage:
+>>>>>>> b72ce59299431403e0df9d5ffa693802c6b2a65b
    
-   Run the Tool:
+   Run the Tool (Faster Way):
    ```
    ./GhostHunter
    ```
-   Or run directly without build:
+   
+   Or run directly without using the build file:
    ```
    go run scanner.go
+   ```
+
+   You want to rebuild the file? Use:
+   ```
+   go build -o GhostHunter
    ```
 
 # Contributing
