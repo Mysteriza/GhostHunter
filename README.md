@@ -73,3 +73,4 @@ Thanks to the [Wayback Machine](https://web.archive.org/) for providing the CDX 
 Special thanks to the creators of the Go libraries used in this project:
 - [github.com/briandowns/spinner](github.com/briandowns/spinner)
 - [github.com/fatih/color](github.com/fatih/color)
+- [github.com/olekukonko/tablewriter](github.com/olekukonko/tablewriter)
