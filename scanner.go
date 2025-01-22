@@ -66,6 +66,10 @@ func main() {
 	}
 	s.Stop()
 
+	// Display the total number of URLs found before filtering
+	unfilteredURLs := strings.Split(string(body), "\n")
+	color.Cyan("\nTotal URLs found (before filtering): %d\n", len(unfilteredURLs))
+
 	// Process and filter URLs
 	filteredURLs := filterURLs(string(body))
 
@@ -133,6 +137,9 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 	var wg sync.WaitGroup
 	totalURLs := 0 // Variable to store the total number of URLs
 
+	// Use a mutex to safely append rows to the table
+	var mu sync.Mutex
+
 	// Iterate over all extensions found
 	for ext, urls := range extensionMap {
 		wg.Add(1)
@@ -144,9 +151,13 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 
 			// Attempt to save the file
 			if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+				mu.Lock()
 				table.Append([]string{ext, fileName, color.RedString("Failed"), fmt.Sprintf("%d URLs", len(urls))})
+				mu.Unlock()
 			} else {
+				mu.Lock()
 				table.Append([]string{ext, fileName, color.GreenString("Success"), fmt.Sprintf("%d URLs", len(urls))})
+				mu.Unlock()
 			}
 			totalURLs += len(urls) // Add to the total count
 		}(ext, urls)
