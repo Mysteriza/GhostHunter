@@ -14,6 +14,7 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
+	"github.com/olekukonko/tablewriter" // Library untuk membuat tabel
 )
 
 func main() {
@@ -111,6 +112,21 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 		}
 	}
 
+	// Prepare a table to display the results
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"File Extension", "File Name", "Status"})
+	table.SetBorder(false)
+	table.SetHeaderColor(
+		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiCyanColor},
+		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiCyanColor},
+		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiCyanColor},
+	)
+	table.SetColumnColor(
+		tablewriter.Colors{tablewriter.FgHiGreenColor},
+		tablewriter.Colors{tablewriter.FgHiWhiteColor},
+		tablewriter.Colors{tablewriter.FgHiYellowColor},
+	)
+
 	// Save the results into separate files
 	var wg sync.WaitGroup
 	for ext, urls := range extensionMap {
@@ -121,11 +137,15 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 			filePath := filepath.Join(outputDir, fileName)
 			content := strings.Join(urls, "\n")
 			if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-				color.Red("Failed to save file '%s': %v\n", filePath, err)
+				table.Append([]string{ext, fileName, color.RedString("Failed")})
 			} else {
-				color.Green("File '%s' saved successfully.\n", fileName)
+				table.Append([]string{ext, fileName, color.GreenString("Success")})
 			}
 		}(ext, urls)
 	}
 	wg.Wait()
+
+	// Render the table
+	fmt.Println("\nResults Summary:")
+	table.Render()
 }

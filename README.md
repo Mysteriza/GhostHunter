@@ -24,6 +24,7 @@ Go: Make sure you have Go installed on your system.
    GhostHunter uses the following Go packages:
    - github.com/briandowns/spinner
    - github.com/fatih/color
+   - github.com/olekukonko/tablewriter
    Install them using:
     ```
     go get github.com/briandowns/spinner
@@ -31,13 +32,17 @@ Go: Make sure you have Go installed on your system.
     ```
     go get github.com/fatih/color
     ```
+    ```
+    go get github.com/olekukonko/tablewriter
+    ```
     Or install them globally:
-   ```
-   go install github.com/briandowns/spinner@latest
-   ```
-   ```
-   go install github.com/fatih/color@latest
-   ```
+    ```
+    go install github.com/briandowns/spinner@latest
+    ```
+    ```
+    go install github.com/fatih/color@latest
+    ```
+
 4. Build the Tool (Optional):
    ```
    go build -o GhostHunter
