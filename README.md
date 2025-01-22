@@ -25,6 +25,7 @@ Go: Make sure you have Go installed on your system.
    - github.com/briandowns/spinner
    - github.com/fatih/color
    - github.com/olekukonko/tablewriter
+
    Install them using:
     ```
     go get github.com/briandowns/spinner
@@ -35,30 +36,19 @@ Go: Make sure you have Go installed on your system.
     ```
     go get github.com/olekukonko/tablewriter
     ```
+
     Or install them globally:
-<<<<<<< HEAD
     ```
     go install github.com/briandowns/spinner@latest
     ```
     ```
     go install github.com/fatih/color@latest
     ```
+    ```
+    go install github.com/olekukonko/tablewriter@latest
+    ```
 
-4. Build the Tool (Optional):
-   ```
-   go build -o GhostHunter
-   ```
-5. Usage:
-=======
-   ```
-   go install github.com/briandowns/spinner@latest
-   ```
-   ```
-   go install github.com/fatih/color@latest
-   ```
-4. Usage:
->>>>>>> b72ce59299431403e0df9d5ffa693802c6b2a65b
-   
+3. Usage:   
    Run the Tool (Faster Way):
    ```
    ./GhostHunter
