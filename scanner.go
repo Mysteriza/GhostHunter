@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,99 +16,125 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
 	"github.com/olekukonko/tablewriter"
+	"log"
 )
 
-func main() {
-	// Ask the user for the domain to search
-	var domain string
-	color.Cyan("Enter the domain to search (e.g., target.com): ")
-	_, err := fmt.Scanln(&domain)
+type Config struct {
+	Extensions []string `json:"extensions"`
+}
+
+// Fungsi untuk logging info
+func logInfo(message string) {
+	log.Printf("[INFO] %s\n", message)
+}
+
+// Fungsi untuk logging warning
+func logWarning(message string) {
+	log.Printf("[WARNING] %s\n", message)
+}
+
+// Fungsi untuk logging error
+func logError(message string) {
+	log.Printf("[ERROR] %s\n", message)
+}
+
+func setupLogging() *os.File {
+	logFile, err := os.Create("ghosthunter.log")
 	if err != nil {
-		color.Red("Error reading domain input: %v\n", err)
-		return
+		logError("Failed to create log file: " + err.Error())
+		log.Fatal("Failed to create log file: ", err)
+	}
+	log.SetOutput(logFile)
+	logInfo("Log file created successfully.")
+	return logFile
+}
+
+func loadConfig() Config {
+	file, err := os.ReadFile("config.json")
+	if err != nil {
+		logError("Failed to read config file: " + err.Error())
+		log.Fatal("Failed to read config file: ", err)
 	}
 
-	// Create a directory to store the results
-	outputDir := filepath.Join("results", domain)
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		color.Red("Failed to create directory '%s': %v\n", outputDir, err)
-		return
+	var config Config
+	if err := json.Unmarshal(file, &config); err != nil {
+		logError("Failed to parse config file: " + err.Error())
+		log.Fatal("Failed to parse config file: ", err)
 	}
-	color.Green("Directory '%s' created successfully.\n", outputDir)
 
-	// Show a spinner while fetching data from Wayback Machine
-	s := spinner.New(spinner.CharSets[36], 100*time.Millisecond)
-	s.Prefix = "Fetching data from Wayback Machine "
-	s.Start()
+	logInfo("Config loaded successfully. Extensions: " + strings.Join(config.Extensions, ", "))
+	return config
+}
 
-	// Prepare the Wayback Machine CDX API URL and parameters
-	apiURL := "https://web.archive.org/cdx/search/cdx"
-	params := url.Values{}
-	params.Add("url", "*."+domain+"/*")
-	params.Add("collapse", "urlkey")
-	params.Add("output", "text")
-	params.Add("fl", "original")
+func fetchURLsConcurrently(apiURL string, params url.Values, numWorkers int) ([]string, error) {
+	logInfo("Fetching URLs from API: " + apiURL)
+	var wg sync.WaitGroup
+	urlChan := make(chan string, numWorkers)
+	var urls []string
+	var mu sync.Mutex
 
-	// Make an HTTP GET request
+	worker := func() {
+		defer wg.Done()
+		for url := range urlChan {
+			mu.Lock()
+			urls = append(urls, url)
+			mu.Unlock()
+		}
+	}
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go worker()
+	}
+
 	resp, err := http.Get(apiURL + "?" + params.Encode())
 	if err != nil {
-		s.Stop()
-		color.Red("Error making request: %v\n", err)
-		return
+		logError("Failed to fetch URLs: " + err.Error())
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	// Read the response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		s.Stop()
-		color.Red("Error reading response: %v\n", err)
-		return
+		logError("Failed to read response body: " + err.Error())
+		return nil, err
 	}
-	s.Stop()
 
-	// Display the total number of URLs found before filtering
-	unfilteredURLs := strings.Split(string(body), "\n")
-	color.Cyan("\nTotal URLs found (before filtering): %d\n", len(unfilteredURLs))
+	for _, line := range strings.Split(string(body), "\n") {
+		if line != "" {
+			urlChan <- line
+		}
+	}
+	close(urlChan)
 
-	// Process and filter URLs
-	filteredURLs := filterURLs(string(body))
-
-	// Save the results into separate files based on file extensions
-	saveResultsByExtension(filteredURLs, domain, outputDir)
-
-	color.Green("Process completed! Results saved in directory '%s'.\n", outputDir)
+	wg.Wait()
+	logInfo(fmt.Sprintf("Fetched %d URLs from API.", len(urls)))
+	return urls, nil
 }
 
-// Function to filter URLs based on desired file extensions
-func filterURLs(data string) []string {
-	// Regex to match desired file extensions
-	regexPattern := `\.(config|yml|yaml|env|ini|properties|sql|db|backup|dump|log|cache|secret|pem|key|cer|pfx|php|js|py|java|rb|txt|csv|xml|json|pdf|doc|docx|xls|xlsx|zip|tar\.gz|7z|rar)(\?.*)?$`
+func filterURLs(data string, extensions []string) []string {
+	logInfo("Filtering URLs based on extensions: " + strings.Join(extensions, ", "))
+	regexPattern := `\.(` + strings.Join(extensions, "|") + `)(\?.*)?$`
 	re := regexp.MustCompile(regexPattern)
 
-	// Split the data into lines
 	lines := strings.Split(data, "\n")
-
-	// Store URLs that match the regex
 	var filteredURLs []string
+
 	for _, line := range lines {
-		if re.MatchString(line) {
+		if line != "" && re.MatchString(line) {
 			filteredURLs = append(filteredURLs, line)
 		}
 	}
 
+	logInfo(fmt.Sprintf("Filtered %d URLs.", len(filteredURLs)))
 	return filteredURLs
 }
 
-// Function to save results into separate files based on file extensions
 func saveResultsByExtension(urls []string, domain string, outputDir string) {
-	// Map to group URLs by their file extensions
+	logInfo("Saving results by extension to directory: " + outputDir)
 	extensionMap := make(map[string][]string)
-
-	// Regex to extract file extensions
 	re := regexp.MustCompile(`\.([a-zA-Z0-9]+)(\?.*)?$`)
 
-	// Group URLs by their extensions
 	for _, url := range urls {
 		matches := re.FindStringSubmatch(url)
 		if len(matches) > 1 {
@@ -116,7 +143,6 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 		}
 	}
 
-	// Prepare a table to display the results
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader([]string{"File Found", "File Name", "Status", "URL Count"})
 	table.SetBorder(false)
@@ -133,14 +159,10 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 		tablewriter.Colors{tablewriter.FgHiMagentaColor},
 	)
 
-	// Save the results into separate files
 	var wg sync.WaitGroup
-	totalURLs := 0 // Variable to store the total number of URLs
-
-	// Use a mutex to safely append rows to the table
 	var mu sync.Mutex
+	totalURLs := 0
 
-	// Iterate over all extensions found
 	for ext, urls := range extensionMap {
 		wg.Add(1)
 		go func(ext string, urls []string) {
@@ -149,32 +171,115 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 			filePath := filepath.Join(outputDir, fileName)
 			content := strings.Join(urls, "\n")
 
-			// Attempt to save the file
 			if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 				mu.Lock()
+				logError(fmt.Sprintf("Failed to save file %s: %s", fileName, err.Error()))
 				table.Append([]string{ext, fileName, color.RedString("Failed"), fmt.Sprintf("%d URLs", len(urls))})
 				mu.Unlock()
 			} else {
 				mu.Lock()
+				logInfo(fmt.Sprintf("Successfully saved file %s with %d URLs.", fileName, len(urls)))
 				table.Append([]string{ext, fileName, color.GreenString("Success"), fmt.Sprintf("%d URLs", len(urls))})
 				mu.Unlock()
 			}
-			totalURLs += len(urls) // Add to the total count
+			totalURLs += len(urls)
 		}(ext, urls)
 	}
 	wg.Wait()
 
-	// Add a separator line before the TOTAL row
-	table.Append([]string{"", "", "", ""}) // Empty row for spacing
-	table.Append([]string{"", "", "-------------------", "-------------------"}) // Separator line
-
-	// Add a row for the total number of URLs
+	table.Append([]string{"", "", "", ""})
+	table.Append([]string{"", "", "-------------------", "-------------------"})
 	table.Append([]string{"", "", "TOTAL", fmt.Sprintf("%d URLs", totalURLs)})
 
-	// Render the table
 	fmt.Println("\nResults Summary:")
 	table.Render()
 
-	// Add a closing message
+	logInfo(fmt.Sprintf("Total URLs saved: %d", totalURLs))
 	color.Cyan("\nPlease manually check the Wayback Machine for available snapshots (archives) of URLs found by this tool.\n")
+}
+
+func displayWelcomeMessage() {
+	color.Cyan(`
+  ____ _               _   _   _             _            
+ / ___| |__   ___  ___| |_| | | |_   _ _ __ | |_ ___ _ __ 
+| |  _| '_ \ / _ \/ __| __| |_| | | | | '_ \| __/ _ \ '__|
+| |_| | | | | (_) \__ \ |_|  _  | |_| | | | | ||  __/ |   
+ \____|_| |_|\___/|___/\__|_| |_|\__,_|_| |_|\__\___|_|      
+	`)
+	color.Green("\nWelcome to GhostHunter!")
+	color.Yellow("Unearth hidden treasures from the Wayback Machine!")
+	color.Yellow("Let's hunt some ghosts! 👻")
+	color.Cyan("\nCreated by: Mysteriza & Deepseek AI")
+	color.Cyan("-------------------------------------------------------------")
+}
+func main() {
+	// Tampilkan pesan selamat datang
+	displayWelcomeMessage()
+
+	// Catat waktu mulai program (hanya di log)
+	startTime := time.Now()
+	logFile := setupLogging()
+	defer logFile.Close()
+
+	config := loadConfig()
+
+	var domain string
+	color.Cyan("Enter the domain to search (e.g., target.com): ")
+	_, err := fmt.Scanln(&domain)
+	if err != nil {
+		color.Red("Error reading domain input: %v\n", err)
+		logError("Error reading domain input: " + err.Error())
+		return
+	}
+
+	outputDir := filepath.Join("results", domain)
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		color.Red("Failed to create directory '%s': %v\n", outputDir, err)
+		logError("Failed to create directory '" + outputDir + "': " + err.Error())
+		return
+	}
+	color.Green("Directory '%s' created successfully.\n", outputDir)
+	logInfo("Directory '" + outputDir + "' created successfully.")
+
+	s := spinner.New(spinner.CharSets[36], 100*time.Millisecond)
+	s.Prefix = "Fetching data from Wayback Machine "
+	s.Start()
+
+	apiURL := "https://web.archive.org/cdx/search/cdx"
+	params := url.Values{}
+	params.Add("url", "*." + domain + "/*")
+	params.Add("collapse", "urlkey")
+	params.Add("output", "text")
+	params.Add("fl", "original")
+
+	urls, err := fetchURLsConcurrently(apiURL, params, 4) // 4 workers
+	if err != nil {
+		s.Stop()
+		color.Red("Error fetching URLs: %v\n", err)
+		logError("Error fetching URLs: " + err.Error())
+		return
+	}
+	s.Stop()
+
+	color.Cyan("\nTotal URLs found (before filtering): %d\n", len(urls))
+	logInfo(fmt.Sprintf("Total URLs found (before filtering): %d", len(urls)))
+
+	filteredURLs := filterURLs(strings.Join(urls, "\n"), config.Extensions)
+	saveResultsByExtension(filteredURLs, domain, outputDir)
+
+	color.Green("Process completed! Results saved in directory '%s'.\n", outputDir)
+	logInfo("Process completed! Results saved in directory '" + outputDir + "'.")
+
+	// Catat waktu selesai program dan hitung durasi (hanya di log)
+	endTime := time.Now()
+	duration := endTime.Sub(startTime)
+
+	// Format durasi menjadi 2 angka di belakang koma
+	formattedDuration := fmt.Sprintf("%.2f seconds", duration.Seconds())
+
+	logInfo("Program ended at: " + endTime.Format("2006-01-02 15:04:05"))
+	logInfo("Total duration: " + formattedDuration)
+
+	// Opsional: Cetak durasi di konsol (jika diinginkan)
+	color.Cyan("\nTotal duration: %s\n", formattedDuration)
 }
