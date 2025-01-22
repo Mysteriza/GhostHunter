@@ -1,5 +1,5 @@
 # GhostHunter
-GhostHunter is a powerful web scraping tool designed to discover and archive files from a target domain using the Wayback Machine CDX API. It is particularly useful for penetration testers and security researchers to identify potentially sensitive files exposed on a website.
+GhostHunter is a powerful web scraping tool designed to discover archived files from a target domain using the Wayback Machine CDX API. It is particularly useful for penetration testers and security researchers to identify potentially sensitive files exposed on a website.
 
 # Features
 - Domain Search: Search for archived files from a specific domain.
