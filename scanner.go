@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,17 +24,15 @@ type Config struct {
 	Extensions []string `json:"extensions"`
 }
 
-// Fungsi untuk logging info
+// Logging functions
 func logInfo(message string) {
 	log.Printf("[INFO] %s\n", message)
 }
 
-// Fungsi untuk logging warning
 func logWarning(message string) {
 	log.Printf("[WARNING] %s\n", message)
 }
 
-// Fungsi untuk logging error
 func logError(message string) {
 	log.Printf("[ERROR] %s\n", message)
 }
@@ -64,6 +63,53 @@ func loadConfig() Config {
 
 	logInfo("Config loaded successfully. Extensions: " + strings.Join(config.Extensions, ", "))
 	return config
+}
+
+func checkInternetConnection() bool {
+	client := &http.Client{Timeout: 5 * time.Second}
+	_, err := client.Get("https://www.google.com")
+	if err != nil {
+		logWarning("No internet connection: " + err.Error())
+		return false
+	}
+	return true
+}
+
+func checkWaybackMachine() bool {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get("https://web.archive.org")
+	if err != nil {
+		logWarning("Wayback Machine is down: " + err.Error())
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
+
+func checkDomainAvailability(domain string) bool {
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	resp, err := client.Get("https://" + domain)
+	if err != nil {
+		resp, err = client.Get("http://" + domain)
+		if err != nil {
+			logWarning("Domain is not reachable: " + err.Error())
+			return false
+		}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+		return true
+	}
+
+	logWarning("Domain returned status code: " + fmt.Sprint(resp.StatusCode))
+	return false
 }
 
 func fetchURLsConcurrently(apiURL string, params url.Values, numWorkers int) ([]string, error) {
@@ -212,19 +258,32 @@ func displayWelcomeMessage() {
 	color.Cyan("\nCreated by: Mysteriza & Deepseek AI")
 	color.Cyan("-------------------------------------------------------------")
 }
+
 func main() {
-	// Tampilkan pesan selamat datang
 	displayWelcomeMessage()
 
-	// Catat waktu mulai program (hanya di log)
 	startTime := time.Now()
 	logFile := setupLogging()
 	defer logFile.Close()
 
+	color.Cyan("\nChecking internet connection...")
+	if !checkInternetConnection() {
+		color.Red("No internet connection. Please check your network and try again.")
+		return
+	}
+	color.Green("Connected to the Internet!")
+
+	color.Cyan("Checking Wayback Machine availability...")
+	if !checkWaybackMachine() {
+		color.Red("Wayback Machine is currently DOWN. Please try again later.")
+		return
+	}
+	color.Green("Wayback Machine is UP and running.")
+
 	config := loadConfig()
 
 	var domain string
-	color.Cyan("Enter the domain to search (e.g., target.com): ")
+	color.Cyan("\nEnter the domain to search (e.g., target.com): ")
 	_, err := fmt.Scanln(&domain)
 	if err != nil {
 		color.Red("Error reading domain input: %v\n", err)
@@ -232,17 +291,24 @@ func main() {
 		return
 	}
 
+	color.Cyan("Checking domain availability...")
+	if !checkDomainAvailability(domain) {
+		color.Red("Domain is not reachable. Please check the domain and try again.")
+		return
+	}
+	color.Green("Domain is active.")
+
 	outputDir := filepath.Join("results", domain)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		color.Red("Failed to create directory '%s': %v\n", outputDir, err)
 		logError("Failed to create directory '" + outputDir + "': " + err.Error())
 		return
 	}
-	color.Green("Directory '%s' created successfully.\n", outputDir)
+	color.Green("\nDirectory '%s' created successfully.\n", outputDir)
 	logInfo("Directory '" + outputDir + "' created successfully.")
 
 	s := spinner.New(spinner.CharSets[36], 100*time.Millisecond)
-	s.Prefix = "Fetching data from Wayback Machine "
+	s.Prefix = "\nFetching data from Wayback Machine "
 	s.Start()
 
 	apiURL := "https://web.archive.org/cdx/search/cdx"
@@ -270,16 +336,12 @@ func main() {
 	color.Green("Process completed! Results saved in directory '%s'.\n", outputDir)
 	logInfo("Process completed! Results saved in directory '" + outputDir + "'.")
 
-	// Catat waktu selesai program dan hitung durasi (hanya di log)
 	endTime := time.Now()
 	duration := endTime.Sub(startTime)
-
-	// Format durasi menjadi 2 angka di belakang koma
 	formattedDuration := fmt.Sprintf("%.2f seconds", duration.Seconds())
 
 	logInfo("Program ended at: " + endTime.Format("2006-01-02 15:04:05"))
 	logInfo("Total duration: " + formattedDuration)
 
-	// Opsional: Cetak durasi di konsol (jika diinginkan)
 	color.Cyan("\nTotal duration: %s\n", formattedDuration)
 }
