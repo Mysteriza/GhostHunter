@@ -38,19 +38,21 @@ Go: Make sure you have Go installed on your system.
    ```
    go install github.com/fatih/color@latest
    ```
-4. Build the Tool (Optional):
-   ```
-   go build -o GhostHunter
-   ```
-5. Usage:
+4. Usage:
    
-   Run the Tool:
+   Run the Tool (Faster Way):
    ```
    ./GhostHunter
    ```
-   Or run directly without build:
+   
+   Or run directly without using the build file:
    ```
    go run scanner.go
+   ```
+
+   You want to rebuild the file? Use:
+   ```
+   go build -o GhostHunter
    ```
 
 # Contributing
