@@ -242,7 +242,6 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 	table.Render()
 
 	logInfo(fmt.Sprintf("Total URLs saved: %d", totalURLs))
-	color.Cyan("\nPlease manually check the Wayback Machine for available snapshots (archives) of URLs found by this tool.\n")
 }
 
 func displayWelcomeMessage() {
@@ -427,7 +426,7 @@ func saveSnapshotResults(snapshots map[string][]string, domain string, outputDir
 func searchSnapshots() {
 	// Ask user if they want to search for snapshots
 	var choice string
-	color.Cyan("\nDo you want to search for snapshots of the found URLs? (y/n): ")
+	color.Cyan("\nDo you want to search for snapshots of the found URLs? (Y/n): ")
 	_, err := fmt.Scanln(&choice)
 	if err != nil || strings.ToLower(choice) != "y" {
 		color.Yellow("Snapshot search skipped.")
