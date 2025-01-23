@@ -317,17 +317,30 @@ func fetchSnapshots(urls []string, domain string) {
 
 	outputDir := filepath.Join("results", domain)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		fmt.Println("Failed to create directory:", err)
+		color.Red("Failed to create directory: %v\n", err)
 		return
 	}
 
 	outputFile := filepath.Join(outputDir, domain+".snapshots.txt")
 	file, err := os.Create(outputFile)
 	if err != nil {
-		fmt.Println("Failed to create file:", err)
+		color.Red("Failed to create file: %v\n", err)
 		return
 	}
 	defer file.Close()
+
+	// Table for summary
+	summaryTable := tablewriter.NewWriter(os.Stdout)
+	summaryTable.SetHeader([]string{"URL", "Snapshot Count"})
+	summaryTable.SetBorder(false)
+	summaryTable.SetHeaderColor(
+		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiCyanColor},
+		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiCyanColor},
+	)
+	summaryTable.SetColumnColor(
+		tablewriter.Colors{tablewriter.FgHiGreenColor},
+		tablewriter.Colors{tablewriter.FgHiYellowColor},
+	)
 
 	worker := func() {
 		defer wg.Done()
@@ -339,22 +352,28 @@ func fetchSnapshots(urls []string, domain string) {
 			apiURL := fmt.Sprintf("https://web.archive.org/cdx/search/cdx?url=%s&output=text&fl=timestamp,original", url)
 			resp, err := client.Get(apiURL)
 			if err != nil {
-				fmt.Println("Failed to fetch snapshots for URL:", url, err)
+				color.Red("Failed to fetch snapshots for URL: %s\nError: %v\n", url, err)
 				continue
 			}
 
 			body, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			if err != nil {
-				fmt.Println("Failed to read response body for URL:", url, err)
+				color.Red("Failed to read response body for URL: %s\nError: %v\n", url, err)
 				continue
 			}
 
 			lines := strings.Split(string(body), "\n")
 			if len(lines) > 1 {
-				fmt.Printf("\nSnapshots for URL: %s\n", url)
+				// Print header for the URL
+				color.Cyan("\n────────────────────────────────────────────────────────────────────────")
+				color.Cyan("Snapshots for URL: %s", url)
+				color.Cyan("────────────────────────────────────────────────────────────────────────")
+
+				// Write to file
 				fmt.Fprintf(file, "Snapshots for URL: %s\n", url)
 
+				// Process each snapshot
 				for _, line := range lines {
 					if line != "" {
 						parts := strings.Fields(line)
@@ -362,34 +381,59 @@ func fetchSnapshots(urls []string, domain string) {
 							timestamp := parts[0]
 							originalURL := parts[1]
 							snapshotURL := fmt.Sprintf("https://web.archive.org/web/%s/%s", timestamp, originalURL)
-							fmt.Println("  -", snapshotURL)
-							fmt.Fprintln(file, "  -", snapshotURL)
+
+							// Parse and format the timestamp
+							parsedTime, err := time.Parse("20060102150405", timestamp)
+							if err != nil {
+								color.Red("Failed to parse timestamp: %s\nError: %v\n", timestamp, err)
+								continue
+							}
+							formattedTime := parsedTime.Format("02 January 2006, 15:04:05")
+
+							// Print to terminal with colors
+							color.Green("  - Timestamp: %s", color.YellowString(formattedTime))
+							color.Green("    URL: %s", color.BlueString(snapshotURL))
+
+							// Write to file
+							fmt.Fprintf(file, "  - Timestamp: %s\n    URL: %s\n", formattedTime, snapshotURL)
 						}
 					}
 				}
-				fmt.Fprintln(file)
+
+				// Add to summary table
+				summaryTable.Append([]string{url, fmt.Sprintf("%d snapshots", len(lines)-1)})
 			} else {
-				fmt.Printf("\nNo snapshots found for URL: %s\n", url)
+				color.Yellow("\nNo snapshots found for URL: %s\n", url)
 				fmt.Fprintf(file, "No snapshots found for URL: %s\n\n", url)
 			}
 
+			// Rate limiting
 			time.Sleep(500 * time.Millisecond)
 		}
 	}
 
+	// Start workers
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
 		go worker()
 	}
 
+	// Send URLs to workers
 	for _, url := range urls {
 		urlChan <- url
 	}
 	close(urlChan)
 
+	// Wait for all workers to finish
 	wg.Wait()
 
-	fmt.Printf("\nAll snapshots saved to: %s\n", outputFile)
+	// Render summary table
+	color.Cyan("\n────────────────────────────────────────────────────────────────────────")
+	color.Cyan("Summary of Snapshots")
+	color.Cyan("────────────────────────────────────────────────────────────────────────")
+	summaryTable.Render()
+
+	color.Green("\nAll snapshots saved to: %s\n", outputFile)
 }
 
 func searchSnapshots() {
