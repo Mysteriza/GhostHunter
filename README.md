@@ -20,7 +20,7 @@ GhostHunter is a powerful and user-friendly tool designed to uncover hidden trea
 
 5. Organized Results
     - Save filtered URLs into separate files based on their extensions (e.g., example.com.pdf.txt, example.com.docx.txt).
-    - -Save snapshot results into a single file for easy reference.
+    - Save snapshot results into a single file for easy reference.
 
 6. Colorful and User-Friendly Interface
     - Use of colors and tables for a visually appealing and easy-to-read output.
