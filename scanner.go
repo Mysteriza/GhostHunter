@@ -18,69 +18,38 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
 	"github.com/olekukonko/tablewriter"
-	"log"
 )
 
 type Config struct {
 	Extensions []string `json:"extensions"`
 }
 
-// Logging functions
-func logInfo(message string) {
-	log.Printf("[INFO] %s\n", message)
-}
-
-func logWarning(message string) {
-	log.Printf("[WARNING] %s\n", message)
-}
-
-func logError(message string) {
-	log.Printf("[ERROR] %s\n", message)
-}
-
-func setupLogging() *os.File {
-	logFile, err := os.Create("ghosthunter.log")
-	if err != nil {
-		logError("Failed to create log file: " + err.Error())
-		log.Fatal("Failed to create log file: ", err)
-	}
-	log.SetOutput(logFile)
-	logInfo("Log file created successfully.")
-	return logFile
-}
-
 func loadConfig() Config {
 	file, err := os.ReadFile("config.json")
 	if err != nil {
-		logError("Failed to read config file: " + err.Error())
-		log.Fatal("Failed to read config file: ", err)
+		fmt.Println("Failed to read config file:", err)
+		os.Exit(1)
 	}
 
 	var config Config
 	if err := json.Unmarshal(file, &config); err != nil {
-		logError("Failed to parse config file: " + err.Error())
-		log.Fatal("Failed to parse config file: ", err)
+		fmt.Println("Failed to parse config file:", err)
+		os.Exit(1)
 	}
 
-	logInfo("Config loaded successfully. Extensions: " + strings.Join(config.Extensions, ", "))
 	return config
 }
 
 func checkInternetConnection() bool {
 	client := &http.Client{Timeout: 3 * time.Second}
 	_, err := client.Get("https://www.google.com")
-	if err != nil {
-		logWarning("No internet connection: " + err.Error())
-		return false
-	}
-	return true
+	return err == nil
 }
 
 func checkWaybackMachine() bool {
 	client := &http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Get("https://web.archive.org")
 	if err != nil {
-		logWarning("Wayback Machine is down: " + err.Error())
 		return false
 	}
 	defer resp.Body.Close()
@@ -99,22 +68,15 @@ func checkDomainAvailability(domain string) bool {
 	if err != nil {
 		resp, err = client.Get("http://" + domain)
 		if err != nil {
-			logWarning("Domain is not reachable: " + err.Error())
 			return false
 		}
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-		return true
-	}
-
-	logWarning("Domain returned status code: " + fmt.Sprint(resp.StatusCode))
-	return false
+	return resp.StatusCode >= 200 && resp.StatusCode < 400
 }
 
 func fetchURLsConcurrently(apiURL string, params url.Values, numWorkers int) ([]string, error) {
-	logInfo("Fetching URLs from API: " + apiURL)
 	var wg sync.WaitGroup
 	urlChan := make(chan string, numWorkers)
 	var urls []string
@@ -136,14 +98,12 @@ func fetchURLsConcurrently(apiURL string, params url.Values, numWorkers int) ([]
 
 	resp, err := http.Get(apiURL + "?" + params.Encode())
 	if err != nil {
-		logError("Failed to fetch URLs: " + err.Error())
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logError("Failed to read response body: " + err.Error())
 		return nil, err
 	}
 
@@ -155,12 +115,10 @@ func fetchURLsConcurrently(apiURL string, params url.Values, numWorkers int) ([]
 	close(urlChan)
 
 	wg.Wait()
-	logInfo(fmt.Sprintf("Fetched %d URLs from API.", len(urls)))
 	return urls, nil
 }
 
 func filterURLs(data string, extensions []string) []string {
-	logInfo("Filtering URLs based on extensions: " + strings.Join(extensions, ", "))
 	regexPattern := `\.(` + strings.Join(extensions, "|") + `)(\?.*)?$`
 	re := regexp.MustCompile(regexPattern)
 
@@ -173,12 +131,10 @@ func filterURLs(data string, extensions []string) []string {
 		}
 	}
 
-	logInfo(fmt.Sprintf("Filtered %d URLs.", len(filteredURLs)))
 	return filteredURLs
 }
 
 func saveResultsByExtension(urls []string, domain string, outputDir string) {
-	logInfo("Saving results by extension to directory: " + outputDir)
 	extensionMap := make(map[string][]string)
 	re := regexp.MustCompile(`\.([a-zA-Z0-9]+)(\?.*)?$`)
 
@@ -220,12 +176,10 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 
 			if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 				mu.Lock()
-				logError(fmt.Sprintf("Failed to save file %s: %s", fileName, err.Error()))
 				table.Append([]string{ext, fileName, color.RedString("Failed"), fmt.Sprintf("%d URLs", len(urls))})
 				mu.Unlock()
 			} else {
 				mu.Lock()
-				logInfo(fmt.Sprintf("Successfully saved file %s with %d URLs.", fileName, len(urls)))
 				table.Append([]string{ext, fileName, color.GreenString("Success"), fmt.Sprintf("%d URLs", len(urls))})
 				mu.Unlock()
 			}
@@ -240,8 +194,6 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 
 	fmt.Println("\nResults Summary:")
 	table.Render()
-
-	logInfo(fmt.Sprintf("Total URLs saved: %d", totalURLs))
 }
 
 func displayWelcomeMessage() {
@@ -289,11 +241,10 @@ func listAvailableExtensions(domain string) ([]string, error) {
 	var extensions []string
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".txt") {
-			// Extract the extension from the filename (e.g., "itenas.ac.id.pdf.txt" -> "pdf")
 			fileName := entry.Name()
 			parts := strings.Split(fileName, ".")
-			if len(parts) >= 3 { // Ensure the filename has at least 3 parts (domain, extension, "txt")
-				ext := parts[len(parts)-2] // The extension is the second-to-last part
+			if len(parts) >= 3 {
+				ext := parts[len(parts)-2]
 				extensions = append(extensions, ext)
 			}
 		}
@@ -358,73 +309,90 @@ func selectExtensions(domain string) ([]string, error) {
 	return selectedExtensions, nil
 }
 
-func fetchSnapshots(urls []string) (map[string][]string, error) {
-	snapshots := make(map[string][]string)
-	client := &http.Client{Timeout: 30 * time.Second} // Increased timeout for Wayback Machine queries
+func fetchSnapshots(urls []string, domain string) {
+	client := &http.Client{Timeout: 120 * time.Second}
+	numWorkers := 5
+	var wg sync.WaitGroup
+	urlChan := make(chan string, numWorkers)
+
+	outputDir := filepath.Join("results", domain)
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		fmt.Println("Failed to create directory:", err)
+		return
+	}
+
+	outputFile := filepath.Join(outputDir, domain+".snapshots.txt")
+	file, err := os.Create(outputFile)
+	if err != nil {
+		fmt.Println("Failed to create file:", err)
+		return
+	}
+	defer file.Close()
+
+	worker := func() {
+		defer wg.Done()
+		for url := range urlChan {
+			if url == "" {
+				continue
+			}
+
+			apiURL := fmt.Sprintf("https://web.archive.org/cdx/search/cdx?url=%s&output=text&fl=timestamp,original", url)
+			resp, err := client.Get(apiURL)
+			if err != nil {
+				fmt.Println("Failed to fetch snapshots for URL:", url, err)
+				continue
+			}
+
+			body, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				fmt.Println("Failed to read response body for URL:", url, err)
+				continue
+			}
+
+			lines := strings.Split(string(body), "\n")
+			if len(lines) > 1 {
+				fmt.Printf("\nSnapshots for URL: %s\n", url)
+				fmt.Fprintf(file, "Snapshots for URL: %s\n", url)
+
+				for _, line := range lines {
+					if line != "" {
+						parts := strings.Fields(line)
+						if len(parts) >= 2 {
+							timestamp := parts[0]
+							originalURL := parts[1]
+							snapshotURL := fmt.Sprintf("https://web.archive.org/web/%s/%s", timestamp, originalURL)
+							fmt.Println("  -", snapshotURL)
+							fmt.Fprintln(file, "  -", snapshotURL)
+						}
+					}
+				}
+				fmt.Fprintln(file)
+			} else {
+				fmt.Printf("\nNo snapshots found for URL: %s\n", url)
+				fmt.Fprintf(file, "No snapshots found for URL: %s\n\n", url)
+			}
+
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go worker()
+	}
 
 	for _, url := range urls {
-		if url == "" {
-			continue // Skip empty lines
-		}
-
-		// Query Wayback Machine for snapshots of the URL
-		apiURL := fmt.Sprintf("https://web.archive.org/cdx/search/cdx?url=%s&output=json", url)
-		resp, err := client.Get(apiURL)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch snapshots for URL %s: %v", url, err)
-		}
-		defer resp.Body.Close()
-
-		// Parse the JSON response
-		var result [][]string
-		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-			return nil, fmt.Errorf("failed to decode Wayback Machine response for URL %s: %v", url, err)
-		}
-
-		// Extract snapshot dates and links
-		var snapshotLinks []string
-		for _, entry := range result[1:] { // Skip the header row
-			if len(entry) >= 3 { // Ensure the entry has at least 3 fields (timestamp, original URL, snapshot URL)
-				timestamp := entry[0]
-				originalURL := entry[1]
-
-				// Ensure the original URL is properly formatted
-				if !strings.HasPrefix(originalURL, "http://") && !strings.HasPrefix(originalURL, "https://") {
-					originalURL = "https://" + originalURL
-				}
-
-				// Construct the snapshot URL in the correct format
-				snapshotURL := fmt.Sprintf("https://web.archive.org/web/%s/%s", timestamp, originalURL)
-				snapshotLinks = append(snapshotLinks, snapshotURL)
-			}
-		}
-
-		if len(snapshotLinks) > 0 {
-			snapshots[url] = snapshotLinks
-		}
+		urlChan <- url
 	}
+	close(urlChan)
 
-	return snapshots, nil
-}
+	wg.Wait()
 
-
-func saveSnapshotResults(snapshots map[string][]string, domain string, outputDir string) {
-	logInfo("Saving snapshot results to directory: " + outputDir)
-	for ext, urls := range snapshots {
-		fileName := fmt.Sprintf("%s.%s.snapshots.txt", domain, ext)
-		filePath := filepath.Join(outputDir, fileName)
-		content := strings.Join(urls, "\n")
-
-		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-			logError(fmt.Sprintf("Failed to save snapshot file %s: %s", fileName, err.Error()))
-		} else {
-			logInfo(fmt.Sprintf("Successfully saved snapshot file %s with %d URLs.", fileName, len(urls)))
-		}
-	}
+	fmt.Printf("\nAll snapshots saved to: %s\n", outputFile)
 }
 
 func searchSnapshots() {
-	// Ask user if they want to search for snapshots
 	var choice string
 	color.Cyan("\nDo you want to search for snapshots of the found URLs? (Y/n): ")
 	_, err := fmt.Scanln(&choice)
@@ -433,29 +401,23 @@ func searchSnapshots() {
 		return
 	}
 
-	// Let user select a domain
 	domain, err := selectDomain()
 	if err != nil {
 		color.Red("Error selecting domain: %v\n", err)
-		logError("Error selecting domain: " + err.Error())
 		return
 	}
 
-	// Let user select extensions
 	extensions, err := selectExtensions(domain)
 	if err != nil {
 		color.Red("Error selecting extensions: %v\n", err)
-		logError("Error selecting extensions: " + err.Error())
 		return
 	}
 
-	// Initialize spinner for snapshot fetching
 	s := spinner.New(spinner.CharSets[36], 100*time.Millisecond)
 	s.Prefix = "Fetching snapshots "
 	s.Start()
 
-	// Fetch snapshots for selected extensions
-	snapshots := make(map[string][]string)
+	var urls []string
 	for _, ext := range extensions {
 		fileName := fmt.Sprintf("%s.%s.txt", domain, ext)
 		filePath := filepath.Join("results", domain, fileName)
@@ -463,48 +425,25 @@ func searchSnapshots() {
 		content, err := os.ReadFile(filePath)
 		if err != nil {
 			color.Red("Failed to read file %s: %v\n", fileName, err)
-			logError(fmt.Sprintf("Failed to read file %s: %v", fileName, err))
 			continue
 		}
 
-		urls := strings.Split(string(content), "\n")
-		snapshotResults, err := fetchSnapshots(urls)
-		if err != nil {
-			color.Red("Failed to fetch snapshots for extension %s: %v\n", ext, err)
-			logError(fmt.Sprintf("Failed to fetch snapshots for extension %s: %v", ext, err))
-			continue
-		}
-
-		// Save snapshot results for the extension
-		for url, snapshotLinks := range snapshotResults {
-			snapshots[ext] = append(snapshots[ext], fmt.Sprintf("URL: %s", url))
-			for _, link := range snapshotLinks {
-				snapshots[ext] = append(snapshots[ext], fmt.Sprintf("  - %s", link))
-			}
-		}
+		urls = append(urls, strings.Split(string(content), "\n")...)
 	}
 
 	s.Stop()
 
-	// Display results in a clean format
-	color.Cyan("\nSnapshot Search Results:")
-	for ext, results := range snapshots {
-		color.Green("\nExtension: %s", ext)
-		for _, line := range results {
-			color.Yellow(line)
-		}
-	}
+	startTime := time.Now()
+	fetchSnapshots(urls, domain)
 
-	// Save snapshot results
-	saveSnapshotResults(snapshots, domain, filepath.Join("results", domain))
+	duration := time.Since(startTime)
+	fmt.Printf("\nTotal duration for Snapshots Scan: %.2f seconds\n", duration.Seconds())
 }
 
 func main() {
 	displayWelcomeMessage()
 
 	startTime := time.Now()
-	logFile := setupLogging()
-	defer logFile.Close()
 
 	color.Cyan("\nChecking internet connection...")
 	if !checkInternetConnection() {
@@ -527,7 +466,6 @@ func main() {
 	_, err := fmt.Scanln(&domain)
 	if err != nil {
 		color.Red("Error reading domain input: %v\n", err)
-		logError("Error reading domain input: " + err.Error())
 		return
 	}
 
@@ -541,11 +479,9 @@ func main() {
 	outputDir := filepath.Join("results", domain)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		color.Red("Failed to create directory '%s': %v\n", outputDir, err)
-		logError("Failed to create directory '" + outputDir + "': " + err.Error())
 		return
 	}
 	color.Green("\nDirectory '%s' created successfully.\n", outputDir)
-	logInfo("Directory '" + outputDir + "' created successfully.")
 
 	s := spinner.New(spinner.CharSets[36], 100*time.Millisecond)
 	s.Prefix = "\nFetching data from Wayback Machine "
@@ -553,38 +489,31 @@ func main() {
 
 	apiURL := "https://web.archive.org/cdx/search/cdx"
 	params := url.Values{}
-	params.Add("url", "*." + domain + "/*")
+	params.Add("url", "*."+domain+"/*")
 	params.Add("collapse", "urlkey")
 	params.Add("output", "text")
 	params.Add("fl", "original")
 
-	urls, err := fetchURLsConcurrently(apiURL, params, 5) // 5 workers
+	urls, err := fetchURLsConcurrently(apiURL, params, 5)
 	if err != nil {
 		s.Stop()
 		color.Red("Error fetching URLs: %v\n", err)
-		logError("Error fetching URLs: " + err.Error())
 		return
 	}
 	s.Stop()
 
 	color.Cyan("\nTotal URLs found (before filtering): %d\n", len(urls))
-	logInfo(fmt.Sprintf("Total URLs found (before filtering): %d", len(urls)))
 
 	filteredURLs := filterURLs(strings.Join(urls, "\n"), config.Extensions)
 	saveResultsByExtension(filteredURLs, domain, outputDir)
 
 	color.Green("Process completed! Results saved in directory '%s'.\n", outputDir)
-	logInfo("Process completed! Results saved in directory '" + outputDir + "'.")
 
-	// Search for snapshots
 	searchSnapshots()
 
 	endTime := time.Now()
 	duration := endTime.Sub(startTime)
 	formattedDuration := fmt.Sprintf("%.2f seconds", duration.Seconds())
 
-	logInfo("Program ended at: " + endTime.Format("2006-01-02 15:04:05"))
-	logInfo("Total duration: " + formattedDuration)
-
-	color.Cyan("\nTotal duration: %s\n", formattedDuration)
+	color.Cyan("\nTOTAL duration: %s\n", formattedDuration)
 }
