@@ -66,7 +66,7 @@ func loadConfig() Config {
 }
 
 func checkInternetConnection() bool {
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 3 * time.Second}
 	_, err := client.Get("https://www.google.com")
 	if err != nil {
 		logWarning("No internet connection: " + err.Error())
@@ -76,7 +76,7 @@ func checkInternetConnection() bool {
 }
 
 func checkWaybackMachine() bool {
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Get("https://web.archive.org")
 	if err != nil {
 		logWarning("Wayback Machine is down: " + err.Error())
@@ -268,7 +268,7 @@ func main() {
 
 	color.Cyan("\nChecking internet connection...")
 	if !checkInternetConnection() {
-		color.Red("No internet connection. Please check your network and try again.")
+		color.Red("No internet or slow connection. Please check your network and try again.")
 		return
 	}
 	color.Green("Connected to the Internet!")
@@ -296,7 +296,7 @@ func main() {
 		color.Red("Domain is not reachable. Please check the domain and try again.")
 		return
 	}
-	color.Green("Domain is active.")
+	color.Green("Domain is active!")
 
 	outputDir := filepath.Join("results", domain)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
@@ -318,7 +318,7 @@ func main() {
 	params.Add("output", "text")
 	params.Add("fl", "original")
 
-	urls, err := fetchURLsConcurrently(apiURL, params, 4) // 4 workers
+	urls, err := fetchURLsConcurrently(apiURL, params, 5) // 5 workers
 	if err != nil {
 		s.Stop()
 		color.Red("Error fetching URLs: %v\n", err)
