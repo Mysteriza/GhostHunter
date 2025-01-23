@@ -5,7 +5,7 @@ GhostHunter is a powerful web scraping tool designed to discover archived files 
 - Domain Search: Search for archived files from a specific domain.
 - File Type Filtering: Automatically filters and categorizes files by their extensions (e.g., .sql, .pdf, .log).
 - Efficient Storage: Saves results in a structured directory named after the target domain.
-- User-Friendly Interface: Includes a spinner and colored output for better user experience.
+- There is a **bug** in the fetchingSnapshots function. The URL is not printed in the correct format, please help :)
 
 # Installation
 Prerequisites
