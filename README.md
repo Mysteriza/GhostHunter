@@ -14,7 +14,7 @@ Go: Make sure you have Go installed on your system.
 ## Steps
 1. Clone the repository:
    ```
-   git clone https://github.com/<your-username>/GhostHunter.git
+   git clone https://github.com/mysteriza/GhostHunter.git
    ```
    ```
    cd GhostHunter
