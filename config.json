@@ -3,5 +3,6 @@
 		"config", "yml", "yaml", "env", "ini", "properties", "sql", "db", "backup", "dump", "log", "cache", "secret", 
 		"pem", "key", "cer", "pfx", "php", "js", "py", "java", "rb", "txt", "csv", "xml", "json", "pdf", "doc", 
 		"docx", "xls", "xlsx", "zip", "tar.gz", "7z", "rar"
-	]
+	],
+	"numWorkers": 5
 }

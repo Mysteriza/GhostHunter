@@ -21,23 +21,29 @@ import (
 )
 
 type Config struct {
-	Extensions []string `json:"extensions"`
+    Extensions []string `json:"extensions"`
+    NumWorkers int      `json:"numWorkers"`
 }
 
 func loadConfig() Config {
-	file, err := os.ReadFile("config.json")
-	if err != nil {
-		fmt.Println("Failed to read config file:", err)
-		os.Exit(1)
-	}
+    file, err := os.ReadFile("config.json")
+    if err != nil {
+        fmt.Println("Failed to read config file:", err)
+        os.Exit(1)
+    }
 
-	var config Config
-	if err := json.Unmarshal(file, &config); err != nil {
-		fmt.Println("Failed to parse config file:", err)
-		os.Exit(1)
-	}
+    var config Config
+    if err := json.Unmarshal(file, &config); err != nil {
+        fmt.Println("Failed to parse config file:", err)
+        os.Exit(1)
+    }
 
-	return config
+    // Set default value for numWorkers if not specified
+    if config.NumWorkers <= 0 {
+        config.NumWorkers = 5 // Default value. Change this value on config.json
+    }
+
+    return config
 }
 
 func checkInternetConnection() bool {
@@ -355,11 +361,30 @@ func fetchSnapshots(urls []string, domain string) {
 				color.Red("Failed to fetch snapshots for URL: %s\nError: %v\n", url, err)
 				continue
 			}
+			defer resp.Body.Close()
+
+			// Check for rate limiting (HTTP 429)
+			if resp.StatusCode == http.StatusTooManyRequests {
+				color.Yellow("Rate limit exceeded for URL: %s. Waiting before retrying...\n", url)
+				time.Sleep(10 * time.Second) // Wait for 10 seconds before retrying
+				continue
+			}
+
+			// Check for other non-200 status codes
+			if resp.StatusCode != http.StatusOK {
+				color.Red("Failed to fetch snapshots for URL: %s\nStatus Code: %d\n", url, resp.StatusCode)
+				continue
+			}
 
 			body, err := io.ReadAll(resp.Body)
-			resp.Body.Close()
 			if err != nil {
 				color.Red("Failed to read response body for URL: %s\nError: %v\n", url, err)
+				continue
+			}
+
+			// Check if the response is a valid timestamp
+			if len(body) == 0 || strings.Contains(string(body), "<html>") {
+				color.Yellow("Invalid response for URL: %s\nResponse: %s\n", url, string(body))
 				continue
 			}
 
@@ -407,8 +432,8 @@ func fetchSnapshots(urls []string, domain string) {
 				fmt.Fprintf(file, "No snapshots found for URL: %s\n\n", url)
 			}
 
-			// Rate limiting
-			time.Sleep(500 * time.Millisecond)
+			// Rate limiting: add delay between requests
+			time.Sleep(2 * time.Second) // Adjust the delay as needed
 		}
 	}
 
@@ -485,79 +510,79 @@ func searchSnapshots() {
 }
 
 func main() {
-	displayWelcomeMessage()
+    displayWelcomeMessage()
 
-	startTime := time.Now()
+    startTime := time.Now()
 
-	color.Cyan("\nChecking internet connection...")
-	if !checkInternetConnection() {
-		color.Red("No internet or slow connection. Please check your network and try again.")
-		return
-	}
-	color.Green("Connected to the Internet!")
+    color.Cyan("\nChecking internet connection...")
+    if !checkInternetConnection() {
+        color.Red("No internet or slow connection. Please check your network and try again.")
+        return
+    }
+    color.Green("Connected to the Internet!")
 
-	color.Cyan("Checking Wayback Machine availability...")
-	if !checkWaybackMachine() {
-		color.Red("Wayback Machine is currently DOWN. Please try again later.")
-		return
-	}
-	color.Green("Wayback Machine is UP and running.")
+    color.Cyan("Checking Wayback Machine availability...")
+    if !checkWaybackMachine() {
+        color.Red("Wayback Machine is currently DOWN. Please try again later.")
+        return
+    }
+    color.Green("Wayback Machine is UP and running.")
 
-	config := loadConfig()
+    config := loadConfig()
 
-	var domain string
-	color.Cyan("\nEnter the domain to search (e.g., target.com): ")
-	_, err := fmt.Scanln(&domain)
-	if err != nil {
-		color.Red("Error reading domain input: %v\n", err)
-		return
-	}
+    var domain string
+    color.Cyan("\nEnter the domain to search (e.g., target.com): ")
+    _, err := fmt.Scanln(&domain)
+    if err != nil {
+        color.Red("Error reading domain input: %v\n", err)
+        return
+    }
 
-	color.Cyan("Checking domain availability...")
-	if !checkDomainAvailability(domain) {
-		color.Red("Domain is not reachable. Please check the domain and try again.")
-		return
-	}
-	color.Green("Domain is active!")
+    color.Cyan("Checking domain availability...")
+    if !checkDomainAvailability(domain) {
+        color.Red("Domain is not reachable. Please check the domain and try again.")
+        return
+    }
+    color.Green("Domain is active!")
 
-	outputDir := filepath.Join("results", domain)
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		color.Red("Failed to create directory '%s': %v\n", outputDir, err)
-		return
-	}
-	color.Green("\nDirectory '%s' created successfully.\n", outputDir)
+    outputDir := filepath.Join("results", domain)
+    if err := os.MkdirAll(outputDir, 0755); err != nil {
+        color.Red("Failed to create directory '%s': %v\n", outputDir, err)
+        return
+    }
+    color.Green("\nDirectory '%s' created successfully.\n", outputDir)
 
-	s := spinner.New(spinner.CharSets[36], 100*time.Millisecond)
-	s.Prefix = "\nFetching data from Wayback Machine "
-	s.Start()
+    s := spinner.New(spinner.CharSets[36], 100*time.Millisecond)
+    s.Prefix = "\nFetching data from Wayback Machine "
+    s.Start()
 
-	apiURL := "https://web.archive.org/cdx/search/cdx"
-	params := url.Values{}
-	params.Add("url", "*."+domain+"/*")
-	params.Add("collapse", "urlkey")
-	params.Add("output", "text")
-	params.Add("fl", "original")
+    apiURL := "https://web.archive.org/cdx/search/cdx"
+    params := url.Values{}
+    params.Add("url", "*."+domain+"/*")
+    params.Add("collapse", "urlkey")
+    params.Add("output", "text")
+    params.Add("fl", "original")
 
-	urls, err := fetchURLsConcurrently(apiURL, params, 5)
-	if err != nil {
-		s.Stop()
-		color.Red("Error fetching URLs: %v\n", err)
-		return
-	}
-	s.Stop()
+    urls, err := fetchURLsConcurrently(apiURL, params, config.NumWorkers)
+    if err != nil {
+        s.Stop()
+        color.Red("Error fetching URLs: %v\n", err)
+        return
+    }
+    s.Stop()
 
-	color.Cyan("\nTotal URLs found (before filtering): %d\n", len(urls))
+    color.Cyan("\nTotal URLs found (before filtering): %d\n", len(urls))
 
-	filteredURLs := filterURLs(strings.Join(urls, "\n"), config.Extensions)
-	saveResultsByExtension(filteredURLs, domain, outputDir)
+    filteredURLs := filterURLs(strings.Join(urls, "\n"), config.Extensions)
+    saveResultsByExtension(filteredURLs, domain, outputDir)
 
-	color.Green("Process completed! Results saved in directory '%s'.\n", outputDir)
+    color.Green("Process completed! Results saved in directory '%s'.\n", outputDir)
 
-	searchSnapshots()
+    searchSnapshots()
 
-	endTime := time.Now()
-	duration := endTime.Sub(startTime)
-	formattedDuration := fmt.Sprintf("%.2f seconds", duration.Seconds())
+    endTime := time.Now()
+    duration := endTime.Sub(startTime)
+    formattedDuration := fmt.Sprintf("%.2f seconds", duration.Seconds())
 
-	color.Cyan("\nTOTAL duration: %s\n", formattedDuration)
+    color.Cyan("\nTOTAL duration: %s\n", formattedDuration)
 }
