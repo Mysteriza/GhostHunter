@@ -75,7 +75,11 @@ Go: Make sure you have Go installed on your system.
     go install github.com/olekukonko/tablewriter@latest
     ```
 
-3. Usage:   
+3. Usage:
+   Run this command to grants execution (execute) permission to the GhostHunter file:
+   ```
+   chmod +x GhostHunter
+   ```   
    Run the Tool (Faster Way):
    ```
    ./GhostHunter
