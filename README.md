@@ -1,3 +1,8 @@
+![Visitor Count](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https://github.com/Mysteriza/GhostHunter&count_bg=%2379C83D&title_bg=%23555555&icon=github.svg&icon_color=%23E7E7E7&title=Visitors&edge_flat=false)
+![Repository Size](https://img.shields.io/github/repo-size/Mysteriza/GhostHunter)
+
+
+
 # GhostHunter
 GhostHunter is a powerful and user-friendly tool designed to uncover hidden treasures from the Wayback Machine. It allows you to search for archived URLs (snapshots) of a specific domain, filter them by file extensions, and save the results in an organized manner. Whether you're a researcher, developer, or cybersecurity enthusiast, GhostHunter makes it easy to explore historical web data.
 
