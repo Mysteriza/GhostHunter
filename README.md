@@ -1,3 +1,8 @@
+![Visitor Count](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https://github.com/Mysteriza/GhostHunter&count_bg=%2379C83D&title_bg=%23555555&icon=github.svg&icon_color=%23E7E7E7&title=Visitors&edge_flat=false)
+![Repository Size](https://img.shields.io/github/repo-size/Mysteriza/GhostHunter)
+
+
+
 # GhostHunter
 GhostHunter is a powerful and user-friendly tool designed to uncover hidden treasures from the Wayback Machine. It allows you to search for archived URLs (snapshots) of a specific domain, filter them by file extensions, and save the results in an organized manner. Whether you're a researcher, developer, or cybersecurity enthusiast, GhostHunter makes it easy to explore historical web data.
 
@@ -70,7 +75,11 @@ Go: Make sure you have Go installed on your system.
     go install github.com/olekukonko/tablewriter@latest
     ```
 
-3. Usage:   
+3. Usage:
+   Run this command to grants execution (execute) permission to the GhostHunter file:
+   ```
+   chmod +x GhostHunter
+   ```   
    Run the Tool (Faster Way):
    ```
    ./GhostHunter
@@ -92,7 +101,7 @@ Go: Make sure you have Go installed on your system.
 <img src="https://github.com/user-attachments/assets/87a60b32-19bc-45ba-a6fd-09a9ab7df5a5" alt="GhostHunter Logo" width="600">
 
 # Contributing
-Contributions are welcome! If you have any suggestions, bug reports, or feature requests, please open an issue or submit a pull request.
+I've abandoned this project, but for those of you who want to request additional features or want to make changes, please leave a message or pull request. I will consider it.
 
 # Acknowledgments
 Thanks to the [Wayback Machine](https://web.archive.org/) for providing the CDX API.
