@@ -48,23 +48,7 @@ Go: Make sure you have Go installed on your system.
    ```
 2. Install Dependencies:
    
-   GhostHunter uses the following Go packages:
-   - github.com/briandowns/spinner
-   - github.com/fatih/color
-   - github.com/olekukonko/tablewriter
-
-   Install them using:
-    ```
-    go get github.com/briandowns/spinner
-    ```
-    ```
-    go get github.com/fatih/color
-    ```
-    ```
-    go get github.com/olekukonko/tablewriter
-    ```
-
-    Or install them globally:
+     Install them globally:
     ```
     go install github.com/briandowns/spinner@latest
     ```
@@ -75,7 +59,7 @@ Go: Make sure you have Go installed on your system.
     go install github.com/olekukonko/tablewriter@latest
     ```
 
-3. Usage:
+4. Usage:
    Run this command to grants execution (execute) permission to the GhostHunter file:
    ```
    chmod +x GhostHunter
@@ -83,11 +67,6 @@ Go: Make sure you have Go installed on your system.
    Run the Tool (Faster Way):
    ```
    ./GhostHunter
-   ```
-   
-   Or run directly without using the build file:
-   ```
-   go run scanner.go
    ```
 
    You want to rebuild the file? Use:
