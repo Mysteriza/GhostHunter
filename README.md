@@ -48,15 +48,15 @@ Go: Make sure you have Go installed on your system.
    ```
 2. Install Dependencies:
    
-     Install them globally:
+     Install them:
     ```
-    go install github.com/briandowns/spinner@latest
-    ```
-    ```
-    go install github.com/fatih/color@latest
+    go install github.com/briandowns/spinner
     ```
     ```
-    go install github.com/olekukonko/tablewriter@latest
+    go install github.com/fatih/color
+    ```
+    ```
+    go install github.com/olekukonko/tablewriter
     ```
 
 4. Usage:
