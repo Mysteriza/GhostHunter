@@ -80,7 +80,7 @@ Go: Make sure you have Go installed on your system.
 <img src="https://github.com/user-attachments/assets/87a60b32-19bc-45ba-a6fd-09a9ab7df5a5" alt="GhostHunter Logo" width="600">
 
 # Contributing
-I've abandoned this project, but for those of you who want to request additional features or want to make changes, please leave a message or pull request. I will consider it.
+For those of you who want to request additional features or want to make changes, please leave a message or pull request. I will consider it.
 
 # Acknowledgments
 Thanks to the [Wayback Machine](https://web.archive.org/) for providing the CDX API.
