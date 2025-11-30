@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -72,16 +71,28 @@ func runGhostHunter(config Config, domain string) error {
 	params.Add("output", "text")
 	params.Add("fl", "original")
 
-	urls, err := fetchURLsConcurrently(apiURL, params, config.NumWorkers)
-	if err != nil {
-		s.Stop()
-		return fmt.Errorf("error fetching URLs: %v", err)
+	urlsChan, errChan := fetchURLsConcurrently(apiURL, params)
+
+	// We need to wait for fetching to complete or at least handle errors
+	// But filterURLs consumes the channel, so we can run it directly.
+	// However, we also want to know the total count of found URLs which we can't know until we consume the channel.
+	// filterURLs returns a slice, so it consumes the whole channel.
+
+	filteredURLs := filterURLs(urlsChan, config.Extensions)
+
+	// Check for errors from fetching
+	select {
+	case err := <-errChan:
+		if err != nil {
+			s.Stop()
+			return fmt.Errorf("error fetching URLs: %v", err)
+		}
+	default:
 	}
 	s.Stop()
 
-	color.Cyan("\nTotal URLs found (before filtering): %d\n", len(urls))
+	color.Cyan("\nTotal URLs found (filtered): %d\n", len(filteredURLs))
 
-	filteredURLs := filterURLs(strings.Join(urls, "\n"), config.Extensions)
 	saveResultsByExtension(filteredURLs, domain, outputDir)
 
 	color.Green("Process completed! Results saved in directory '%s'.\n", outputDir)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,15 +13,13 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-// filterURLs filters URLs based on specified extensions
-func filterURLs(data string, extensions []string) []string {
+// filterURLs filters URLs based on specified extensions using a channel
+func filterURLs(input <-chan string, extensions []string) []string {
 	regexPattern := `\.(` + strings.Join(extensions, "|") + `)(\?.*)?$`
 	re := regexp.MustCompile(regexPattern)
 
-	lines := strings.Split(data, "\n")
-	filteredURLs := make([]string, 0, len(lines)/2) // Pre-allocate with estimated size
-
-	for _, line := range lines {
+	var filteredURLs []string
+	for line := range input {
 		if line != "" && re.MatchString(line) {
 			filteredURLs = append(filteredURLs, line)
 		}
@@ -68,9 +67,23 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 			defer wg.Done()
 			fileName := fmt.Sprintf("%s.%s.txt", domain, ext)
 			filePath := filepath.Join(outputDir, fileName)
-			content := strings.Join(urls, "\n")
 
-			if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			// Use buffered writing
+			file, err := os.Create(filePath)
+			if err != nil {
+				mu.Lock()
+				table.Append([]string{ext, fileName, color.RedString("Failed"), fmt.Sprintf("%d URLs", len(urls))})
+				mu.Unlock()
+				return
+			}
+			defer file.Close()
+
+			writer := bufio.NewWriter(file)
+			for _, url := range urls {
+				fmt.Fprintln(writer, url)
+			}
+
+			if err := writer.Flush(); err != nil {
 				mu.Lock()
 				table.Append([]string{ext, fileName, color.RedString("Failed"), fmt.Sprintf("%d URLs", len(urls))})
 				mu.Unlock()
@@ -79,6 +92,7 @@ func saveResultsByExtension(urls []string, domain string, outputDir string) {
 				table.Append([]string{ext, fileName, color.GreenString("Success"), fmt.Sprintf("%d URLs", len(urls))})
 				mu.Unlock()
 			}
+
 			mu.Lock()
 			totalURLs += len(urls)
 			mu.Unlock()

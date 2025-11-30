@@ -121,7 +121,6 @@ func selectExtensions(domain string) ([]string, error) {
 
 // fetchSnapshots retrieves and saves snapshots for the given URLs
 func fetchSnapshots(ctx context.Context, urls []string, domain string) {
-	client := &http.Client{Timeout: DefaultTimeout}
 	numWorkers := DefaultNumWorkers
 	var wg sync.WaitGroup
 	urlChan := make(chan string, numWorkers)
@@ -152,6 +151,8 @@ func fetchSnapshots(ctx context.Context, urls []string, domain string) {
 		tablewriter.Colors{tablewriter.FgHiYellowColor},
 	)
 
+	var mu sync.Mutex
+
 	worker := func() {
 		defer wg.Done()
 		for url := range urlChan {
@@ -162,12 +163,12 @@ func fetchSnapshots(ctx context.Context, urls []string, domain string) {
 			apiURL := fmt.Sprintf("https://web.archive.org/cdx/search/cdx?url=%s&output=text&fl=timestamp,original", url)
 			req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 			if err != nil {
-				color.Red("Failed to create request for URL: %s\nError: %v\n", url, err)
+				// color.Red("Failed to create request for URL: %s\nError: %v\n", url, err)
 				continue
 			}
-			resp, err := client.Do(req)
+			resp, err := httpClient.Do(req)
 			if err != nil {
-				color.Red("Failed to fetch snapshots for URL: %s\nError: %v\n", url, err)
+				// color.Red("Failed to fetch snapshots for URL: %s\nError: %v\n", url, err)
 				continue
 			}
 			defer resp.Body.Close()
@@ -175,6 +176,7 @@ func fetchSnapshots(ctx context.Context, urls []string, domain string) {
 			if resp.StatusCode == http.StatusTooManyRequests {
 				color.Yellow("Rate limit exceeded for URL: %s. Waiting before retrying...\n", url)
 				time.Sleep(10 * time.Second)
+				// Ideally retry, but for now just skip or simple retry logic could be added
 				continue
 			}
 			if resp.StatusCode != http.StatusOK {
@@ -198,6 +200,7 @@ func fetchSnapshots(ctx context.Context, urls []string, domain string) {
 				color.Cyan("\n────────────────────────────────────────────────────────────────────────")
 				color.Cyan("Snapshots for URL: %s", url)
 				color.Cyan("────────────────────────────────────────────────────────────────────────")
+
 				fmt.Fprintf(file, "Snapshots for URL: %s\n", url)
 
 				for _, line := range lines {
@@ -221,13 +224,21 @@ func fetchSnapshots(ctx context.Context, urls []string, domain string) {
 						}
 					}
 				}
+				mu.Lock()
 				summaryTable.Append([]string{url, fmt.Sprintf("%d snapshots", len(lines)-1)})
+				mu.Unlock()
 			} else {
 				color.Yellow("\nNo snapshots found for URL: %s\n", url)
 				fmt.Fprintf(file, "No snapshots found for URL: %s\n\n", url)
 			}
 
-			time.Sleep(DefaultWorkerDelay) // Rate limiting delay
+			// mu.Lock()
+			// processedCount++
+			// fmt.Printf("\rProgress: %d/%d URLs processed", processedCount, totalURLs)
+			// mu.Unlock()
+
+			// time.Sleep(DefaultWorkerDelay) // Rate limiting delay - maybe reduce if using shared client with pooling?
+			// Keep delay to be safe with Wayback Machine
 		}
 	}
 
@@ -241,6 +252,7 @@ func fetchSnapshots(ctx context.Context, urls []string, domain string) {
 	}
 	close(urlChan)
 	wg.Wait()
+	fmt.Println() // Newline after progress bar
 
 	color.Cyan("\n────────────────────────────────────────────────────────────────────────")
 	color.Cyan("Summary of Snapshots")

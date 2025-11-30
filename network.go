@@ -5,21 +5,29 @@ import (
 	"crypto/tls"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 )
 
+// Shared HTTP client with connection pooling
+var httpClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     90 * time.Second,
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+	},
+}
+
 // checkInternetConnection verifies if there’s an active internet connection
 func checkInternetConnection() bool {
-	client := &http.Client{Timeout: 3 * time.Second}
-	_, err := client.Get("https://www.google.com")
+	_, err := httpClient.Get("https://www.google.com")
 	return err == nil
 }
 
 // checkWaybackMachine checks if the Wayback Machine is available
 func checkWaybackMachine() bool {
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get("https://web.archive.org")
+	resp, err := httpClient.Get("https://web.archive.org")
 	if err != nil {
 		return false
 	}
@@ -29,16 +37,9 @@ func checkWaybackMachine() bool {
 
 // checkDomainAvailability checks if the domain is reachable
 func checkDomainAvailability(domain string) bool {
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-
-	resp, err := client.Get("https://" + domain)
+	resp, err := httpClient.Get("https://" + domain)
 	if err != nil {
-		resp, err = client.Get("http://" + domain)
+		resp, err = httpClient.Get("http://" + domain)
 		if err != nil {
 			return false
 		}
@@ -48,61 +49,34 @@ func checkDomainAvailability(domain string) bool {
 	return resp.StatusCode >= 200 && resp.StatusCode < 400
 }
 
-// fetchURLsConcurrently retrieves URLs from the Wayback Machine API concurrently
-func fetchURLsConcurrently(apiURL string, params url.Values, numWorkers int) ([]string, error) {
-	resp, err := http.Get(apiURL + "?" + params.Encode())
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+// fetchURLsConcurrently retrieves URLs from the Wayback Machine API using streaming
+func fetchURLsConcurrently(apiURL string, params url.Values) (<-chan string, <-chan error) {
+	out := make(chan string)
+	errChan := make(chan error, 1)
 
-	// Use bufio.Scanner for efficient streaming
-	scanner := bufio.NewScanner(resp.Body)
-	var lines []string
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line != "" {
-			lines = append(lines, line)
+	go func() {
+		defer close(out)
+		defer close(errChan)
+
+		resp, err := httpClient.Get(apiURL + "?" + params.Encode())
+		if err != nil {
+			errChan <- err
+			return
 		}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
+		defer resp.Body.Close()
 
-	// Process lines in parallel
-	chunkSize := (len(lines) + numWorkers - 1) / numWorkers
-	var wg sync.WaitGroup
-	results := make([][]string, numWorkers)
-
-	for i := 0; i < numWorkers; i++ {
-		start := i * chunkSize
-		end := start + chunkSize
-		if end > len(lines) {
-			end = len(lines)
-		}
-		if start >= end {
-			break
-		}
-
-		wg.Add(1)
-		go func(i int, chunk []string) {
-			defer wg.Done()
-			var localURLs []string
-			for _, line := range chunk {
-				if line != "" {
-					localURLs = append(localURLs, line)
-				}
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line != "" {
+				out <- line
 			}
-			results[i] = localURLs
-		}(i, lines[start:end])
-	}
+		}
 
-	wg.Wait()
+		if err := scanner.Err(); err != nil {
+			errChan <- err
+		}
+	}()
 
-	// Combine results
-	var urls []string
-	for _, result := range results {
-		urls = append(urls, result...)
-	}
-	return urls, nil
+	return out, errChan
 }
