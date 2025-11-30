@@ -50,13 +50,13 @@ Go: Make sure you have Go installed on your system.
    
      Install them:
     ```
-    go install github.com/briandowns/spinner
+    go get github.com/briandowns/spinner@latest
     ```
     ```
-    go install github.com/fatih/color
+    go get github.com/fatih/color@latest
     ```
     ```
-    go install github.com/olekukonko/tablewriter
+    go get github.com/olekukonko/tablewriter@latest
     ```
 
 4. Usage:
